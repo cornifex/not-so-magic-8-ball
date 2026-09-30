@@ -1,0 +1,13 @@
+{
+  "name": "jev-magic-eight-ball",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "try": "node scripts/try-questions.js"
+  },
+  "devDependencies": {
+    "wrangler": "^4.145.0"
+  }
+}

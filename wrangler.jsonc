@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "jev-magic-eight-ball",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-09-30",
+  // Static files are served straight from ./public; anything that isn't a file
+  // (i.e. /api/ask) falls through to the Worker.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  }
+}

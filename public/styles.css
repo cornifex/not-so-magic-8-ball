@@ -1,0 +1,640 @@
+:root {
+  --bg: #07070d;
+  --bg-glow: #1b1640;
+  --ink: #ece9f7;
+  --muted: #9d99b6;
+  --accent: #4d5bf0;
+  --accent-hover: #5f6cff;
+  --warn-ink: #ffd6cc;
+  --warn-bg: rgba(255, 120, 90, 0.08);
+  --warn-line: rgba(255, 140, 110, 0.28);
+  --support-bg: rgba(120, 140, 255, 0.08);
+  --support-line: rgba(140, 155, 255, 0.3);
+
+  /* Everything on the ball scales from its diameter. */
+  --ball: min(400px, calc(100vw - 48px), 56svh);
+  --window: calc(var(--ball) * 0.5);
+  --edge: calc(var(--window) * 0.66);
+  --inradius: calc(var(--edge) * 0.7557613); /* icosahedron: face centre to die centre */
+
+  --die-font: "Futura", "Futura PT", "Century Gothic", "Avenir Next", "Trebuchet MS", sans-serif;
+  --ui-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  min-height: 100svh;
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 32%, var(--bg-glow) 0%, #0c0a1f 45%, var(--bg) 80%) fixed,
+    var(--bg);
+  color: var(--ink);
+  font: 16px/1.5 var(--ui-font);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: #aab4ff;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.page {
+  max-width: 560px;
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: 32px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+}
+
+.modes a {
+  padding: 6px 14px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+  border-radius: 999px;
+}
+
+.modes a:hover {
+  color: var(--ink);
+}
+
+.modes a[aria-current="page"] {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.modes a:focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 2px;
+}
+
+.masthead {
+  text-align: center;
+}
+
+.masthead h1 {
+  margin: 0;
+  font: 700 clamp(1.15rem, 3.2vw, 1.45rem) / 1.2 var(--die-font);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.masthead .not-so {
+  color: var(--muted);
+}
+
+.masthead p {
+  max-width: 34em;
+  margin: 6px auto 0;
+  color: var(--muted);
+}
+
+/* ---------------------------------------------------------------- ball -- */
+
+.ball-area {
+  position: relative;
+  width: var(--ball);
+  aspect-ratio: 1;
+  margin: 4px 0 16px;
+}
+
+.ball-shadow {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  bottom: -8%;
+  height: 12%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.75), transparent);
+  filter: blur(6px);
+}
+
+.ball-wrap {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+}
+
+.ball {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(circle at 42% 36%, #34343f 0%, #17171d 38%, #060608 68%, #000 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 0 80px rgba(111, 124, 255, 0.14);
+}
+
+.ball-surface {
+  position: absolute;
+  inset: 0;
+}
+
+/* Specular highlight and rim light. Sits above the ball and doesn't rotate,
+   because the light source doesn't move when the ball twists. */
+.ball-gloss {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 13% 7% at 33% 17%, rgba(255, 255, 255, 0.55), transparent 100%),
+    radial-gradient(ellipse 34% 22% at 36% 22%, rgba(255, 255, 255, 0.14), transparent 100%),
+    radial-gradient(circle at 50% 50%, transparent 62%, rgba(150, 160, 255, 0.07) 70%, transparent 71%);
+  box-shadow: inset calc(var(--ball) * -0.04) calc(var(--ball) * -0.06) calc(var(--ball) * 0.12) rgba(0, 0, 0, 0.8);
+}
+
+.eight,
+.window {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  border-radius: 50%;
+}
+
+.eight {
+  width: calc(var(--ball) * 0.46);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 40% 34%, #fff 0%, #f0f0f4 48%, #c9c9d3 100%);
+  box-shadow: inset 0 calc(var(--ball) * -0.012) calc(var(--ball) * 0.03) rgba(0, 0, 0, 0.3);
+}
+
+.eight span {
+  font: 700 calc(var(--ball) * 0.3) / 1 var(--die-font);
+  color: #0b0b10;
+  translate: 0 3%;
+}
+
+.window {
+  width: var(--window);
+  aspect-ratio: 1;
+  background: #02040c;
+  box-shadow:
+    0 0 0 calc(var(--ball) * 0.012) #09090d,
+    0 0 0 calc(var(--ball) * 0.022) #24242d,
+    0 0 calc(var(--ball) * 0.04) calc(var(--ball) * 0.02) rgba(0, 0, 0, 0.8);
+  /* Starts on the underside of the ball; the flip rolls it into view. */
+  transform: translateY(calc(var(--ball) * 0.5)) scaleY(0);
+  opacity: 0;
+}
+
+.liquid {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 42%, #10256a 0%, #0a1845 30%, #050c26 60%, #01030b 100%);
+}
+
+/* Murky edges: the die fades into dark liquid away from the glass. */
+.liquid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 46%, transparent 36%, rgba(1, 3, 12, 0.7) 56%, rgba(0, 0, 6, 0.97) 76%);
+  box-shadow: inset 0 0 calc(var(--window) * 0.08) #000;
+}
+
+/* Rolling the ball over: a disc on a sphere rotating by θ moves by R·sinθ
+   and flattens by cosθ. Keyframes sample θ = 0°, 30°, 60°, 90°. */
+.ball[data-side="window"] .eight {
+  animation: roll-away 750ms cubic-bezier(0.45, 0, 0.55, 1) forwards;
+}
+
+.ball[data-side="window"] .window {
+  animation: roll-in 750ms cubic-bezier(0.45, 0, 0.55, 1) forwards;
+}
+
+@keyframes roll-away {
+  0% { transform: none; opacity: 1; }
+  33% { transform: translateY(calc(var(--ball) * -0.25)) scaleY(0.866); }
+  66% { transform: translateY(calc(var(--ball) * -0.433)) scaleY(0.5); opacity: 0.7; }
+  100% { transform: translateY(calc(var(--ball) * -0.5)) scaleY(0); opacity: 0; }
+}
+
+@keyframes roll-in {
+  0% { transform: translateY(calc(var(--ball) * 0.5)) scaleY(0); opacity: 0; }
+  33% { transform: translateY(calc(var(--ball) * 0.433)) scaleY(0.5); opacity: 0.7; }
+  66% { transform: translateY(calc(var(--ball) * 0.25)) scaleY(0.866); opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+
+.ball-wrap.shaking {
+  animation: shake 900ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+.ball-wrap.shaking .ball-surface {
+  animation: twist 900ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes shake {
+  0%, 100% { translate: 0 0; }
+  10% { translate: -3% -1.5%; }
+  25% { translate: 4% 1%; }
+  40% { translate: -4% -0.5%; }
+  55% { translate: 3% 1%; }
+  70% { translate: -2% 0; }
+  85% { translate: 1% 0; }
+}
+
+@keyframes twist {
+  0%, 100% { rotate: 0deg; }
+  10% { rotate: -7deg; }
+  25% { rotate: 8deg; }
+  40% { rotate: -6deg; }
+  55% { rotate: 4deg; }
+  70% { rotate: -2deg; }
+  85% { rotate: 1deg; }
+}
+
+/* ----------------------------------------------------------------- die -- */
+
+.die-depth {
+  position: absolute;
+  inset: 0;
+}
+
+.die-depth.settled {
+  animation: bob 5s ease-in-out infinite;
+}
+
+@keyframes bob {
+  0%, 100% { translate: 0 0; rotate: 0deg; }
+  50% { translate: 0 -1.2%; rotate: 1deg; }
+}
+
+.die-stage {
+  position: absolute;
+  inset: 0;
+  perspective: calc(var(--edge) * 6);
+}
+
+.die {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+}
+
+/* An equilateral triangle whose centroid sits on the die's centre before
+   its matrix3d() moves it into place. */
+.face {
+  position: absolute;
+  width: var(--edge);
+  height: calc(var(--edge) * 0.8660254);
+  left: calc(var(--edge) * -0.5);
+  top: calc(var(--edge) * -0.5773503);
+  transform-origin: 50% 66.66667%;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  backface-visibility: hidden;
+  background: linear-gradient(180deg, #3040cc 0%, #1f2ea6 55%, #172285 100%);
+  color: #eef0ff;
+  /* font-size is set per face by d20.js so each label fits its triangle. */
+  font: 700 calc(var(--edge) * 0.082) / 1.04 var(--die-font);
+  letter-spacing: 0.03em;
+  text-align: center;
+}
+
+/* Lighting: d20.js sets --shade from how far the face is turned away. */
+.face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #01030b;
+  opacity: var(--shade, 0);
+}
+
+.face-text {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 72%; /* a little below the centroid, where the triangle is wider */
+  translate: 0 -50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-shadow: 0 0 0.35em rgba(170, 190, 255, 0.45);
+}
+
+.bubbles {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.bubbles i {
+  position: absolute;
+  bottom: -8%;
+  left: var(--x);
+  width: var(--s);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(200, 215, 255, 0.55), rgba(120, 150, 255, 0.08) 70%);
+  opacity: 0;
+}
+
+.ball.stirring .bubbles i {
+  animation: bubble 1.5s ease-in var(--d) both;
+}
+
+@keyframes bubble {
+  0% { opacity: 0; translate: 0 0; }
+  15% { opacity: 0.85; }
+  100% { opacity: 0; translate: var(--drift) calc(var(--window) * -1.1); }
+}
+
+/* ------------------------------------------------------------ messages -- */
+
+.asked {
+  margin: 0;
+  max-width: 480px;
+  color: var(--muted);
+  font-style: italic;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.notice,
+.support {
+  width: min(100%, 480px);
+  margin: 0;
+  border-radius: 14px;
+  padding: 12px 16px;
+}
+
+.notice {
+  color: var(--warn-ink);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  text-align: center;
+}
+
+.support {
+  background: var(--support-bg);
+  border: 1px solid var(--support-line);
+}
+
+.support h2 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.support p {
+  margin: 0;
+  color: var(--ink);
+}
+
+/* ---------------------------------------------------------------- form -- */
+
+.ask {
+  width: min(100%, 480px);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.ask input {
+  min-width: 0;
+  padding: 12px 18px;
+  font: inherit;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+}
+
+.ask input::placeholder {
+  color: #77738f;
+}
+
+.ask input:focus-visible,
+.ask button:focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 2px;
+}
+
+.ask-submit {
+  padding: 0 24px;
+  font: 600 1rem / 1 var(--ui-font);
+  color: #fff;
+  background: var(--accent);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.ask-submit:hover {
+  background: var(--accent-hover);
+}
+
+.ask-submit[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+/* Make-your-own: question, then choices, then a full-width Ask. */
+.ask-custom {
+  grid-template-columns: 1fr;
+}
+
+.ask-custom .ask-submit {
+  padding: 14px 24px;
+  margin-top: 8px;
+}
+
+.choices {
+  min-width: 0;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.choices legend {
+  margin-bottom: 8px;
+  padding: 0 18px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.choice-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.choice-list li {
+  position: relative;
+  display: flex;
+}
+
+.choice-list input {
+  flex: 1;
+  padding-right: 44px;
+}
+
+.choice-remove {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  translate: 0 -50%;
+  width: 32px;
+  height: 32px;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.choice-remove:hover {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.choice-remove:disabled {
+  visibility: hidden;
+}
+
+.choices-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-top: 10px;
+  padding-right: 18px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.add-choice {
+  padding: 7px 16px;
+  font: 600 0.875rem / 1 var(--ui-font);
+  color: var(--ink);
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.add-choice:hover:not(:disabled) {
+  border-style: solid;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.add-choice:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 420px) {
+  .choice-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.ask-meta {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 18px;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.counter {
+  font-variant-numeric: tabular-nums;
+}
+
+.counter.near {
+  color: #ffd479;
+}
+
+.counter.full {
+  color: #ff9d8a;
+}
+
+.credit {
+  margin-top: auto;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------ reduced motion -- */
+
+@media (prefers-reduced-motion: reduce) {
+  .eight,
+  .window {
+    transition: opacity 300ms;
+  }
+
+  .ball[data-side="window"] .eight {
+    animation: none;
+    opacity: 0;
+  }
+
+  .ball[data-side="window"] .window {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+
+  .ball-wrap.shaking,
+  .ball-wrap.shaking .ball-surface,
+  .ball.stirring .bubbles i,
+  .die-depth.settled {
+    animation: none;
+  }
+}
