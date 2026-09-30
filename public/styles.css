@@ -598,6 +598,15 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
+/* Turnstile only fills this when Cloudflare needs the visitor to interact. */
+.human-check {
+  grid-column: 1 / -1;
+}
+
+.human-check:empty {
+  display: none;
+}
+
 .counter.near {
   color: #ffd479;
 }

@@ -9,6 +9,8 @@ A Magic 8 Ball built in plain HTML, CSS, and JavaScript, with no framework and n
 
 The die is a CSS 3D icosahedron built from real geometry. When you ask, the ball shakes and the die sinks into the murk. A Cloudflare Worker asks Jev, and the die rises with the chosen face pressed against the window.
 
+Before Jev is called, the Worker checks the input, applies a per-visitor rate limit of 10 questions a minute, and verifies a [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) token. Turnstile runs invisibly and only shows a challenge when Cloudflare isn't sure about a visitor. Requests that fail any of these checks never reach Jev.
+
 Each question is one Jev call, and every decision is made in code from Jev's probabilities. Nothing is random:
 
 1. **Screening.** Three yes/no checks run on the question (and on every custom choice): harmful, hateful, and self-harm. Anything scoring 35% or higher isn't answered. A self-harm signal shows support resources instead of an answer.
@@ -26,10 +28,12 @@ You need Node.js 22 or newer and a [TypeSafe](https://docs.typesafe.ai) API key.
 npm install
 ```
 
-Create a `.dev.vars` file in the project root with your key. It's git-ignored, and Wrangler loads it as a secret:
+Create a `.dev.vars` file in the project root. It's git-ignored, and Wrangler loads it as secrets. The Turnstile values are Cloudflare's published [test keys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/), which always pass and work on localhost:
 
 ```
 TYPESAFE_API_KEY=your-key-here
+TURNSTILE_SITE_KEY=1x00000000000000000000AA
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 ```
 
 Start the dev server at http://localhost:8787:
@@ -51,14 +55,16 @@ Run it after changing a threshold, a screening question, or an answer's `meaning
 
 ## API
 
-`POST /api/ask` with a JSON body:
+`POST /api/ask` with a JSON body. Every request also carries `token`, a Turnstile token (omitted below).
 
 | Ball | Request | Answer |
 | --- | --- | --- |
 | Classic | `{ "question": "Is the earth flat?" }` | `{ "status": "answer", "answer": "my_sources_say_no" }` |
 | Make your own | `{ "question": "…", "choices": ["Walk", "Drive"] }` | `{ "status": "answer", "choice": 1 }` or `{ "status": "undecided" }` |
 
-Other statuses: `refused` (screened out), `support` (self-harm signal), `invalid` (bad input, with a `message`), `rate_limited`, and `error`. Questions are limited to 80 characters and choices to 24. The same rules in [`public/js/validation.js`](public/js/validation.js) run in the browser and in the Worker.
+Other statuses: `refused` (screened out), `support` (self-harm signal), `invalid` (bad input, with a `message`), `unverified` (Turnstile failed), `rate_limited`, and `error`.
+
+`GET /api/config` returns the public Turnstile site key the page needs. Questions are limited to 80 characters and choices to 24. The same rules in [`public/js/validation.js`](public/js/validation.js) run in the browser and in the Worker.
 
 ## Project layout
 
@@ -70,21 +76,40 @@ Other statuses: `refused` (screened out), `support` (self-harm signal), `invalid
 | `public/js/app.js` | Page behavior for both balls: asking, results, and messages |
 | `public/js/answers.js` | The 20 classic answers, shared by the page and the Worker |
 | `public/js/custom-die.js`, `choices-editor.js` | Laying custom choices onto the die, and the choices form |
-| `src/worker.js` | Cloudflare Worker: validates `/api/ask` and serves `public/` |
+| `public/js/human-check.js` | Turnstile in the browser: a fresh token for each question |
+| `src/worker.js` | Cloudflare Worker: validates, rate-limits, and verifies `/api/ask`, and serves `public/` |
+| `src/turnstile.js` | Verifies Turnstile tokens with Cloudflare |
 | `src/jev.js` | Builds the Jev request and turns its probabilities into a decision |
 | `scripts/try-questions.js` | The tuning script above |
 
 ## Deploying
 
-The project is set up for Cloudflare Workers, with static assets served from `public/`. To deploy by hand, store the key as a Worker secret once, then deploy. Wrangler asks you to log in to Cloudflare the first time.
+The project is set up for Cloudflare Workers, with static assets served from `public/`. To deploy by hand:
 
-```bash
-npx wrangler secret put TYPESAFE_API_KEY
-```
+1. In the Cloudflare dashboard, create a Turnstile widget for your domain (Managed mode).
+2. Add its site key to `wrangler.jsonc`. It's public, so it can live in the repo:
 
-```bash
-npm run deploy
-```
+   ```jsonc
+   "vars": { "TURNSTILE_SITE_KEY": "your-site-key" }
+   ```
+
+3. Store the two secrets on the Worker. Wrangler asks you to log in to Cloudflare the first time:
+
+   ```bash
+   npx wrangler secret put TYPESAFE_API_KEY
+   ```
+
+   ```bash
+   npx wrangler secret put TURNSTILE_SECRET_KEY
+   ```
+
+4. Deploy:
+
+   ```bash
+   npm run deploy
+   ```
+
+If any key is missing, the Worker refuses every question rather than skipping a check.
 
 ## Privacy
 

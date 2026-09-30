@@ -4,9 +4,18 @@
   "main": "src/worker.js",
   "compatibility_date": "2026-09-30",
   // Static files are served straight from ./public; anything that isn't a file
-  // (i.e. /api/ask) falls through to the Worker.
+  // (i.e. /api/*) falls through to the Worker.
   "assets": {
     "directory": "./public",
     "binding": "ASSETS"
-  }
+  },
+  // Per-visitor limit on /api/ask. Each answer takes a few seconds to
+  // animate, so 10 a minute is well above a person's pace.
+  "ratelimits": [
+    {
+      "name": "ASK_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 10, "period": 60 }
+    }
+  ]
 }

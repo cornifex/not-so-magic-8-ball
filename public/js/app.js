@@ -2,6 +2,7 @@ import { ANSWERS } from "./answers.js";
 import { createBall } from "./ball.js";
 import { createChoicesEditor } from "./choices-editor.js";
 import { layoutCustomFaces, UNDECIDED_FACES } from "./custom-die.js";
+import { createHumanCheck } from "./human-check.js";
 import { MAX_QUESTION_LENGTH, validateChoices, validateQuestion } from "./validation.js";
 
 // The shake always lasts at least this long, so Jev's response time
@@ -27,6 +28,7 @@ const notice = document.querySelector("#notice");
 const support = document.querySelector("#support");
 const announcer = document.querySelector("#announcer");
 
+const humanCheck = createHumanCheck(document.querySelector(".human-check"));
 const editor = custom ? createChoicesEditor(document.querySelector("#choices")) : null;
 let layout = custom ? initialLayout() : null;
 const ball = createBall(
@@ -124,6 +126,11 @@ async function showResult(result, request) {
     return;
   }
 
+  if (result.status === "unverified") {
+    showNotice("The ball couldn't confirm you're a person. Try again, and if you use a content blocker, allow challenges.cloudflare.com.");
+    return;
+  }
+
   if (result.status === "refused") {
     showNotice("The ball won't answer that one. Try asking something else.");
     return;
@@ -149,11 +156,17 @@ async function reveal(face, text) {
 }
 
 async function ask(request) {
+  let token;
+  try {
+    token = await humanCheck.token();
+  } catch {
+    return { status: "unverified" };
+  }
   try {
     const response = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
+      body: JSON.stringify({ ...request, token }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     const data = await response.json().catch(() => null);

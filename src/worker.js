@@ -7,8 +7,11 @@ import {
   interpretCustom,
   JevError,
 } from "./jev.js";
+import { verifyHuman } from "./turnstile.js";
 
-const MAX_BODY_BYTES = 2048;
+// Room for a question, six choices, and a Turnstile token (up to 2048 chars).
+const MAX_BODY_BYTES = 4096;
+const REQUIRED_CONFIG = ["TYPESAFE_API_KEY", "TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY"];
 
 export default {
   async fetch(request, env) {
@@ -16,12 +19,29 @@ export default {
     if (url.pathname === "/api/ask") {
       return handleAsk(request, env);
     }
+    if (url.pathname === "/api/config") {
+      return handleConfig(env);
+    }
     return env.ASSETS.fetch(request);
   },
 };
 
-// Body: { question } for the classic ball, or { question, choices } for a
-// "make your own" ball.
+// Public settings the page needs before it can ask anything.
+function handleConfig(env) {
+  if (!env.TURNSTILE_SITE_KEY) {
+    console.error("TURNSTILE_SITE_KEY is not set");
+    return json({ status: "error" }, 500);
+  }
+  return json({ turnstileSiteKey: env.TURNSTILE_SITE_KEY }, 200, {
+    "Cache-Control": "public, max-age=300",
+  });
+}
+
+// Body: { question, token } for the classic ball, or { question, choices,
+// token } for a "make your own" ball. `token` is the Turnstile token.
+//
+// Checks run cheapest first: input, per-visitor rate limit, Turnstile, and
+// only then the paid Jev call.
 async function handleAsk(request, env) {
   if (request.method !== "POST") {
     return json({ status: "error", message: "Use POST." }, 405, { Allow: "POST" });
@@ -58,9 +78,21 @@ async function handleAsk(request, env) {
     choices = choiceCheck.choices;
   }
 
-  if (!env.TYPESAFE_API_KEY) {
-    console.error("TYPESAFE_API_KEY is not set");
+  // Fail closed: without every key, nothing gets past the bot check to Jev.
+  const missing = REQUIRED_CONFIG.filter((name) => !env[name]);
+  if (missing.length) {
+    console.error(`Missing configuration: ${missing.join(", ")}`);
     return json({ status: "error" }, 500);
+  }
+
+  const ip = request.headers.get("CF-Connecting-IP");
+  const { success: withinLimit } = await env.ASK_LIMITER.limit({ key: ip ?? "unknown" });
+  if (!withinLimit) {
+    return json({ status: "rate_limited" }, 429);
+  }
+
+  if (!(await verifyHuman(env, body.token, ip))) {
+    return json({ status: "unverified" }, 403);
   }
 
   // One Jev call screens the question (and any custom choices) and decides
