@@ -127,15 +127,17 @@ export function buildCustomRequest(question, choices) {
 
 // TYPESAFE_BASE_URL points requests at Cloudflare AI Gateway instead of
 // TypeSafe directly; AI_GATEWAY_TOKEN authenticates with the gateway. The
-// gateway logs each request's metadata (tokens, status, timing) but never
-// the payload, so visitors' questions aren't stored.
+// gateway logs each request, including the question, any custom choices, and
+// Jev's scores, so the ball can be tuned on real questions. The logs are
+// anonymous: the Worker sends only the question and choices, never the
+// visitor's IP address or anything else that identifies them. The page
+// says so in its footer.
 export async function askJev(env, { state, questions }) {
   const url = `${env.TYPESAFE_BASE_URL ?? DEFAULT_BASE_URL}/v1/systemone`;
   const gatewayHeaders = env.AI_GATEWAY_TOKEN
     ? {
         "cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
         "cf-aig-cache-ttl": String(GATEWAY_CACHE_TTL_SECONDS),
-        "cf-aig-collect-log-payload": "false",
       }
     : {};
   for (let attempt = 1; ; attempt++) {

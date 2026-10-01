@@ -599,6 +599,7 @@ a {
 }
 
 .credit p {
+  max-width: 34em;
   margin: 0;
 }
 

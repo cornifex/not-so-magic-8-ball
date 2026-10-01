@@ -114,7 +114,7 @@ async function handleAsk(request, env) {
     if (error instanceof JevError && error.status === 429) {
       return json({ status: "rate_limited" }, 429);
     }
-    // Log the failure, never the question: visitors' questions stay private.
+    // Log the failure, never the question; questions are only logged, anonymously, in AI Gateway.
     console.error(error instanceof JevError ? error.message : `Unexpected error: ${error.name}`);
     return json({ status: "error" }, 502);
   }
