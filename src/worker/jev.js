@@ -12,21 +12,22 @@ const RETRY_DELAY_MS = 300;
 // cache: same question, same answer, no charge.
 const GATEWAY_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
 
-// Screening: flag at TypeSafe's suggested review threshold. There's no human
-// reviewer here, so a flagged question simply isn't answered.
-export const FLAG_THRESHOLD = 0.35;
-// Classic ball: a yes or no verdict needs a majority, otherwise it's unsure.
-export const MIN_MAJORITY = 0.5;
+// Screening. Harmful content needs a clear signal, so risky hobbies like
+// stunts and extreme sports get answered; hateful content and self-harm flag
+// earlier, because missing those costs more than a false alarm.
+export const HARMFUL_THRESHOLD = 0.5;
+export const HATEFUL_THRESHOLD = 0.35;
+export const SELF_HARM_THRESHOLD = 0.35;
+// Classic ball: how sure Jev is of the leading side, yes or no. Below
+// MIN_LEAN the ball says it's unsure; from STRONG_LEAN up it uses strong
+// wording ("It is certain"), in between soft wording ("Most likely").
+export const MIN_LEAN = 0.55;
+export const STRONG_LEAN = 0.8;
+// Classic ball: below this, the question isn't a yes-or-no question at all.
+const MIN_YES_NO = 0.5;
 // Make-your-own ball: the top choice must beat the runner-up by this much,
 // otherwise it's too close to call.
-export const MIN_MARGIN = 0.15;
-
-const GROUPS = ["yes", "no", "unsure"];
-
-// Offered alongside custom choices so Jev has an honest way to say none of
-// them stands out, instead of confidently picking whichever is listed first.
-const NO_BASIS = "no_basis";
-const NO_BASIS_MEANING = "None stands out: it comes down to taste, chance, or information not given";
+export const MIN_MARGIN = 0.1;
 
 export class JevError extends Error {
   constructor(message, status) {
@@ -42,10 +43,10 @@ function screeningQuestions(subject) {
   return {
     harmful: {
       type: "noul",
-      instructions: `Does ${subject} ask about hurting someone, breaking the law, or doing something dangerous, even hypothetically or as a joke?`,
+      instructions: `Does ${subject} ask about hurting other people, being cruel to animals, committing a crime, or doing something self-destructive, even hypothetically or as a joke?`,
       criteria: {
-        true: "Asks whether to hurt a person, be cruel to an animal, commit a crime, or do something physically dangerous, such as driving drunk or stopping prescribed medication",
-        false: "Everyday questions and decisions, including bold but legal personal choices and routine chores like getting rid of household pests",
+        true: "Violence, cruelty to animals, crimes, or self-destructive acts like driving drunk, taking dangerous drugs, swallowing something toxic, or stopping prescribed medication",
+        false: "Everyday questions and bold personal choices, including adventurous activities people take on by choice, however risky, like extreme sports, stunts, and mountaineering, and chores like getting rid of household pests",
       },
     },
     hateful: {
@@ -67,48 +68,52 @@ function screeningQuestions(subject) {
   };
 }
 
-// Level one of the decision: a single option per group, so the 10 "yes"
-// answers can't outvote the 5 "no" answers just by outnumbering them.
-const VERDICT_QUESTION = {
-  type: "choice",
-  instructions: "How should the question be answered?",
+// The classic ball decides from two yes-or-no probabilities: whether the
+// question can be answered yes or no at all, and how likely the answer is yes.
+const YES_NO_QUESTION = {
+  type: "noul",
+  instructions: "Can the question be answered with yes or no?",
   criteria: {
-    yes: "Yes: true, likely, or generally a good idea",
-    no: "No: false, unlikely, or generally a bad idea",
-    unsure: "Can't say: depends on chance or future events, is too vague, or isn't a yes-or-no question",
+    true: "A yes-or-no question, including predictions, opinions, and personal decisions",
+    false: "Asks for something else: picking between options, a name, a number, a time, or an open-ended answer",
   },
 };
 
-// Level two: the wording. Only answers in the winning group are considered.
+const LEAN_QUESTION = {
+  type: "noul",
+  instructions: "Is the answer to the question more likely yes than no?",
+  criteria: {
+    true: "Yes is more likely: probably true, or probably a good idea for most people",
+    false: "No is more likely: probably false, or probably a bad idea for most people",
+  },
+};
+
+// The wording. Only answers with the chosen group and strength are considered.
 const ANSWER_QUESTION = {
   type: "choice",
   instructions: "Which Magic 8 Ball reply best answers the question?",
   criteria: Object.fromEntries(ANSWERS.map((answer) => [answer.id, answer.meaning])),
 };
 
-// Decisions are asked twice, the second time with the options in reverse
-// order. A decision that flips when the options are merely reordered wasn't
-// a real decision, so the ball says it can't tell.
 export function buildClassicRequest(question) {
   return {
     state: { question },
     questions: {
       ...screeningQuestions("the question"),
-      verdict: VERDICT_QUESTION,
-      verdict_reversed: reversed(VERDICT_QUESTION),
+      yes_no: YES_NO_QUESTION,
+      lean: LEAN_QUESTION,
       answer: ANSWER_QUESTION,
     },
   };
 }
 
+// Custom choices are asked twice, the second time in reverse order. If merely
+// reordering them changes the winner, it wasn't a real preference.
 export function buildCustomRequest(question, choices) {
   const decision = {
     type: "choice",
     instructions: "Which choice is the best answer to the question?",
-    criteria: Object.fromEntries([
-      ...choices.map((choice, i) => [choiceKey(i), choice]),
-      [NO_BASIS, NO_BASIS_MEANING],
-    ]),
+    criteria: Object.fromEntries(choices.map((choice, i) => [choiceKey(i), choice])),
   };
   return {
     state: { question, choices },
@@ -165,37 +170,37 @@ export async function askJev(env, { state, questions }) {
 
 export function interpretClassic(answers) {
   const screening = screeningScores(answers);
-  const forward = probabilities(answers, "verdict");
-  const backward = probabilities(answers, "verdict_reversed");
-  const verdict = average(forward, backward, GROUPS);
+  const yesNo = noul(answers, "yes_no");
+  const lean = noul(answers, "lean");
   const wording = probabilities(answers, "answer");
 
-  const orderAgrees = top(forward, GROUPS)[0] === top(backward, GROUPS)[0];
-  const [leader, leaderProbability] = top(verdict, GROUPS);
-  const decisive = leader === "unsure" || leaderProbability >= MIN_MAJORITY;
-  const group = orderAgrees && decisive ? leader : "unsure";
-  const [answer] = top(wording, ANSWERS.filter((a) => a.group === group).map((a) => a.id));
+  const sureness = Math.max(lean, 1 - lean);
+  const decided = yesNo >= MIN_YES_NO && sureness >= MIN_LEAN;
+  const group = decided ? (lean > 0.5 ? "yes" : "no") : "unsure";
+  const strength = decided ? (sureness >= STRONG_LEAN ? "strong" : "soft") : undefined;
+  const candidates = ANSWERS.filter((a) => a.group === group && a.strength === strength);
+  const [answer] = top(wording, candidates.map((a) => a.id));
 
   return {
     result: screen(screening) ?? { status: "answer", answer },
-    details: { screening, verdict, orderAgrees, group, answer, groupSums: groupSums(wording) },
+    details: { screening, yesNo, lean, group, strength, answer },
   };
 }
 
 export function interpretCustom(answers, choices) {
   const screening = screeningScores(answers);
-  const keys = [...choices.map((_, i) => choiceKey(i)), NO_BASIS];
+  const keys = choices.map((_, i) => choiceKey(i));
   const forward = probabilities(answers, "answer");
   const backward = probabilities(answers, "answer_reversed");
   const scores = average(forward, backward, keys);
 
   const ranked = keys
-    .map((key, index) => ({ key, index, label: choices[index] ?? "(no basis)", probability: scores[key] }))
+    .map((key, index) => ({ index, label: choices[index], probability: scores[key] }))
     .sort((a, b) => b.probability - a.probability);
   const [first, second] = ranked;
   const orderAgrees = top(forward, keys)[0] === top(backward, keys)[0];
   const margin = first.probability - second.probability;
-  const decided = orderAgrees && first.key !== NO_BASIS && margin >= MIN_MARGIN
+  const decided = orderAgrees && margin >= MIN_MARGIN
     ? { status: "answer", choice: first.index }
     : { status: "undecided" };
 
@@ -207,19 +212,19 @@ export function interpretCustom(answers, choices) {
 
 // Self-harm comes first: someone who may be struggling gets support, not a refusal.
 function screen({ harmful, hateful, self_harm }) {
-  if (self_harm >= FLAG_THRESHOLD) return { status: "support" };
-  if (harmful >= FLAG_THRESHOLD || hateful >= FLAG_THRESHOLD) return { status: "refused" };
+  if (self_harm >= SELF_HARM_THRESHOLD) return { status: "support" };
+  if (harmful >= HARMFUL_THRESHOLD || hateful >= HATEFUL_THRESHOLD) return { status: "refused" };
   return null;
 }
 
 function screeningScores(answers) {
-  const scores = {};
-  for (const name of ["harmful", "hateful", "self_harm"]) {
-    const value = answers?.[name]?.noul;
-    if (typeof value !== "number") throw new JevError(`Jev response is missing "${name}"`, 502);
-    scores[name] = value;
-  }
-  return scores;
+  return Object.fromEntries(["harmful", "hateful", "self_harm"].map((name) => [name, noul(answers, name)]));
+}
+
+function noul(answers, name) {
+  const value = answers?.[name]?.noul;
+  if (typeof value !== "number") throw new JevError(`Jev response is missing "${name}"`, 502);
+  return value;
 }
 
 function probabilities(answers, name) {
@@ -241,14 +246,6 @@ function top(scores, keys) {
   return keys
     .map((key) => [key, scores[key] ?? 0])
     .reduce((best, entry) => (entry[1] > best[1] ? entry : best));
-}
-
-// For the tuning script: what adding up the 20-answer probabilities by group
-// would have said, to compare against the verdict question.
-function groupSums(scores) {
-  const sums = Object.fromEntries(GROUPS.map((group) => [group, 0]));
-  for (const answer of ANSWERS) sums[answer.group] += scores[answer.id] ?? 0;
-  return sums;
 }
 
 function choiceKey(index) {

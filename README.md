@@ -13,10 +13,9 @@ Before Jev is called, the Worker checks the input, applies a per-visitor rate li
 
 Each question is one Jev call, and every decision is made in code from Jev's probabilities. Nothing is random:
 
-1. **Screening.** Three yes/no checks run on the question (and on every custom choice): harmful, hateful, and self-harm. Anything scoring 35% or higher isn't answered. A self-harm signal shows support resources instead of an answer.
-2. **Classic verdict.** A three-way yes / no / unsure question makes the decision. The 20-answer question only picks the wording within the winning group, so the 10 "yes" answers can't outvote the 5 "no" answers just by outnumbering them. Yes or no needs at least 50%, otherwise the ball says it's unsure.
-3. **Custom choices.** Jev also gets a "none of these stands out" option. Without it, Jev picks the first-listed choice with confidence even when there's no basis for it. If nothing clearly wins, the die shows **TOO CLOSE TO CALL**.
-4. **Order check.** Each decision is asked twice in the same call, the second time with the options reversed. If reordering changes the winner, the ball says it can't tell.
+1. **Screening.** Three yes/no checks run on the question (and on every custom choice). *Harmful* covers violence, cruelty to animals, crimes, and self-destructive acts like driving drunk or taking dangerous drugs. It blocks at 50%, so adventurous choices like stunts, extreme sports, or mountaineering still get answered. *Hateful* blocks at 35%. A *self-harm* signal at 35% shows support resources instead of an answer.
+2. **Classic ball.** Two yes/no probabilities decide: whether the question can be answered yes or no at all, and how likely the answer is yes. At 80% or more either way, the ball uses strong wording ("It is certain", "My reply is no"). From 55% it uses softer wording ("Most likely", "Don't count on it"). Closer to 50/50 than that, or for a question that isn't yes-or-no, it gives a non-committal answer like "Cannot predict now". A 20-answer question then picks the exact wording within that tier.
+3. **Make your own.** The choices are asked twice, the second time in reverse order. The ball picks the top choice unless reordering changes the winner or the top two are within 10 points of each other, in which case the die shows **TOO CLOSE TO CALL**.
 
 The thresholds live at the top of [`src/worker/jev.js`](src/worker/jev.js). The wording Jev reads for each classic answer is the `meaning` field in [`src/shared/answers.js`](src/shared/answers.js).
 
@@ -61,7 +60,7 @@ npm run try          # every case
 npm run try banjo    # only questions containing "banjo"
 ```
 
-Run it after changing a threshold, a screening question, or an answer's `meaning`.
+Run it after changing a threshold, a screening question, or an answer's `meaning`. It ends with a pass count and how often each ball landed an answer.
 
 ## API
 
