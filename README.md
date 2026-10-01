@@ -84,33 +84,39 @@ Other statuses: `refused` (screened out), `support` (self-harm signal), `invalid
 
 ## Deploying
 
-The project is set up for Cloudflare Workers, with static assets served from `public/`. To deploy by hand:
+The site runs on Cloudflare Workers at the custom domain in `wrangler.jsonc`, with static assets served from `public/`. Pushes to `main` deploy through [GitHub Actions](.github/workflows/deploy.yml); pull requests only check that the Worker builds. The workflow needs two repository secrets:
 
-1. In the Cloudflare dashboard, create a Turnstile widget for your domain (Managed mode).
-2. Add its site key to `wrangler.jsonc`. It's public, so it can live in the repo:
+- `CLOUDFLARE_API_TOKEN`: a token from the **Edit Cloudflare Workers** template, scoped to your account and the site's zone
+- `CLOUDFLARE_ACCOUNT_ID`
 
-   ```jsonc
-   "vars": { "TURNSTILE_SITE_KEY": "your-site-key" }
-   ```
+The Worker's own secrets are set once and kept across deploys:
 
-3. Store the two secrets on the Worker. Wrangler asks you to log in to Cloudflare the first time:
+| Secret | What it is |
+| --- | --- |
+| `TYPESAFE_API_KEY` | Your TypeSafe API key |
+| `TURNSTILE_SECRET_KEY` | The Turnstile widget's secret key |
+| `TYPESAFE_BASE_URL` | Optional: routes Jev calls through AI Gateway, as `https://gateway.ai.cloudflare.com/v1/<account-id>/<gateway>/custom-typesafe` |
+| `AI_GATEWAY_TOKEN` | With the gateway: its authentication token |
 
-   ```bash
-   npx wrangler secret put TYPESAFE_API_KEY
-   ```
+```bash
+npx wrangler secret put TYPESAFE_API_KEY
+```
 
-   ```bash
-   npx wrangler secret put TURNSTILE_SECRET_KEY
-   ```
+The Turnstile site key is public and lives in `wrangler.jsonc`. If `TYPESAFE_API_KEY` or either Turnstile key is missing, the Worker refuses every question rather than skipping a check. To deploy by hand instead of through GitHub:
 
-4. Deploy:
+```bash
+npm run deploy
+```
 
-   ```bash
-   npm run deploy
-   ```
+### AI Gateway
 
-If any key is missing, the Worker refuses every question rather than skipping a check.
+Calls to TypeSafe go through [Cloudflare AI Gateway](https://developers.cloudflare.com/ai-gateway/) as a custom provider (slug `typesafe`, base URL `https://api.typesafe.ai`). The gateway settings used:
+
+- **Authenticated Gateway** on, so only the Worker can use it
+- **Cache Responses** on; the Worker caches each question's answer for a week, so a repeated question gets the same answer at no charge
+- **Rate Limit Requests** at 100 per 60 seconds, sliding window: a cap across all visitors, on top of the Worker's per-visitor limit
+- **Collect Logs** on; the Worker tells the gateway to keep metadata only, never the question
 
 ## Privacy
 
-Questions and choices are sent to TypeSafe to be evaluated. The Worker doesn't store them, and its error logs never include them. Custom choices are saved only in your own browser's local storage.
+Questions and choices are sent to TypeSafe to be evaluated. The Worker doesn't store them, and its error logs never include them. When requests go through Cloudflare AI Gateway, the gateway logs only metadata (token counts, status, timing), never the questions themselves. Custom choices are saved only in your own browser's local storage.

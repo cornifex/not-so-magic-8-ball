@@ -1,0 +1,45 @@
+name: Deploy
+
+# Pull requests only check that the Worker builds; pushes to main deploy it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Deploys run one at a time, in order; a newer push waits instead of racing.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      # Installs the wrangler version pinned in package-lock.json, which the
+      # deploy step below then uses.
+      - run: npm ci
+
+      - name: Check the Worker builds
+        run: npx wrangler deploy --dry-run --outdir dist
+
+      # Worker secrets (TYPESAFE_API_KEY, TURNSTILE_SECRET_KEY,
+      # AI_GATEWAY_TOKEN) live on Cloudflare and persist across deploys, so
+      # this only needs Cloudflare credentials.
+      - name: Deploy to Cloudflare
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy

@@ -8,6 +8,9 @@ const DEFAULT_BASE_URL = "https://api.typesafe.ai";
 const MODEL = "jev-latest";
 const UPSTREAM_TIMEOUT_MS = 6000;
 const RETRY_DELAY_MS = 300;
+// Through Cloudflare AI Gateway, a repeated question is answered from the
+// cache: same question, same answer, no charge.
+const GATEWAY_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 // Screening: flag at TypeSafe's suggested review threshold. There's no human
 // reviewer here, so a flagged question simply isn't answered.
@@ -117,8 +120,19 @@ export function buildCustomRequest(question, choices) {
   };
 }
 
+// TYPESAFE_BASE_URL points requests at Cloudflare AI Gateway instead of
+// TypeSafe directly; AI_GATEWAY_TOKEN authenticates with the gateway. The
+// gateway logs each request's metadata (tokens, status, timing) but never
+// the payload, so visitors' questions aren't stored.
 export async function askJev(env, { state, questions }) {
   const url = `${env.TYPESAFE_BASE_URL ?? DEFAULT_BASE_URL}/v1/systemone`;
+  const gatewayHeaders = env.AI_GATEWAY_TOKEN
+    ? {
+        "cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
+        "cf-aig-cache-ttl": String(GATEWAY_CACHE_TTL_SECONDS),
+        "cf-aig-collect-log-payload": "false",
+      }
+    : {};
   for (let attempt = 1; ; attempt++) {
     let response;
     try {
@@ -127,6 +141,7 @@ export async function askJev(env, { state, questions }) {
         headers: {
           Authorization: `Bearer ${env.TYPESAFE_API_KEY}`,
           "Content-Type": "application/json",
+          ...gatewayHeaders,
         },
         body: JSON.stringify({ model: MODEL, state, questions }),
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
