@@ -4,7 +4,7 @@
 
 import { ANSWERS } from "../shared/answers.js";
 
-const DEFAULT_BASE_URL = "https://api.typesafe.ai";
+export const TYPESAFE_API_URL = "https://api.typesafe.ai";
 const MODEL = "jev-latest";
 const UPSTREAM_TIMEOUT_MS = 6000;
 const RETRY_DELAY_MS = 300;
@@ -18,12 +18,12 @@ const GATEWAY_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
 export const HARMFUL_THRESHOLD = 0.5;
 export const HATEFUL_THRESHOLD = 0.35;
 export const SELF_HARM_THRESHOLD = 0.35;
-// Classic ball: how sure Jev is of the leading side, yes or no. Below
+// Decisive ball: how sure Jev is of the leading side, yes or no. Below
 // MIN_LEAN the ball says it's unsure; from STRONG_LEAN up it uses strong
 // wording ("It is certain"), in between soft wording ("Most likely").
 export const MIN_LEAN = 0.55;
 export const STRONG_LEAN = 0.8;
-// Classic ball: below this, the question isn't a yes-or-no question at all.
+// Decisive ball: below this, the question isn't a yes-or-no question at all.
 const MIN_YES_NO = 0.5;
 // Make-your-own ball: the top choice must beat the runner-up by this much,
 // otherwise it's too close to call.
@@ -68,7 +68,7 @@ function screeningQuestions(subject) {
   };
 }
 
-// The classic ball decides from two yes-or-no probabilities: whether the
+// The decisive ball decides from two yes-or-no probabilities: whether the
 // question can be answered yes or no at all, and how likely the answer is yes.
 const YES_NO_QUESTION = {
   type: "noul",
@@ -95,7 +95,7 @@ const ANSWER_QUESTION = {
   criteria: Object.fromEntries(ANSWERS.map((answer) => [answer.id, answer.meaning])),
 };
 
-export function buildClassicRequest(question) {
+export function buildDecisiveRequest(question) {
   return {
     state: { question },
     questions: {
@@ -133,7 +133,7 @@ export function buildCustomRequest(question, choices) {
 // visitor's IP address or anything else that identifies them. The page
 // says so in its footer.
 export async function askJev(env, { state, questions }) {
-  const url = `${env.TYPESAFE_BASE_URL ?? DEFAULT_BASE_URL}/v1/systemone`;
+  const url = `${env.TYPESAFE_BASE_URL ?? TYPESAFE_API_URL}/v1/systemone`;
   const gatewayHeaders = env.AI_GATEWAY_TOKEN
     ? {
         "cf-aig-authorization": `Bearer ${env.AI_GATEWAY_TOKEN}`,
@@ -170,7 +170,7 @@ export async function askJev(env, { state, questions }) {
   }
 }
 
-export function interpretClassic(answers) {
+export function interpretDecisive(answers) {
   const screening = screeningScores(answers);
   const yesNo = noul(answers, "yes_no");
   const lean = noul(answers, "lean");

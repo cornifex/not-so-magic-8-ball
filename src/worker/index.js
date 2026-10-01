@@ -1,12 +1,13 @@
 import { validateChoices, validateQuestion } from "../shared/validation.js";
 import {
   askJev,
-  buildClassicRequest,
+  buildDecisiveRequest,
   buildCustomRequest,
-  interpretClassic,
+  interpretDecisive,
   interpretCustom,
   JevError,
 } from "./jev.js";
+import { jevStatus, rememberUnavailable, unavailableReason } from "./jev-status.js";
 import { verifyHuman } from "./turnstile.js";
 
 // Room for a question, six choices, and a Turnstile token (up to 2048 chars).
@@ -28,6 +29,9 @@ export default {
     if (url.pathname === "/api/config") {
       return handleConfig(env);
     }
+    if (url.pathname === "/api/status") {
+      return handleStatus(request, env);
+    }
     return env.ASSETS.fetch(request);
   },
 };
@@ -43,7 +47,17 @@ function handleConfig(env) {
   });
 }
 
-// Body: { question, token } for the classic ball, or { question, choices,
+// Whether Jev can answer right now: { available: true } or
+// { available: false, reason }. Pages that use Jev check this on load and
+// fall back to the classic ball when it's unavailable.
+async function handleStatus(request, env) {
+  if (!env.TYPESAFE_API_KEY) {
+    return json({ available: false, reason: "unauthorized" });
+  }
+  return json(await jevStatus(request, env));
+}
+
+// Body: { question, token } for the decisive ball, or { question, choices,
 // token } for a "make your own" ball. `token` is the Turnstile token.
 //
 // Checks run cheapest first: input, per-visitor rate limit, Turnstile, and
@@ -108,14 +122,18 @@ async function handleAsk(request, env) {
       const answers = await askJev(env, buildCustomRequest(question, choices));
       return json(interpretCustom(answers, choices).result);
     }
-    const answers = await askJev(env, buildClassicRequest(question));
-    return json(interpretClassic(answers).result);
+    const answers = await askJev(env, buildDecisiveRequest(question));
+    return json(interpretDecisive(answers).result);
   } catch (error) {
-    if (error instanceof JevError && error.status === 429) {
-      return json({ status: "rate_limited" }, 429);
-    }
     // Log the failure, never the question; questions are only logged, anonymously, in AI Gateway.
     console.error(error instanceof JevError ? error.message : `Unexpected error: ${error.name}`);
+    // Out of credit, a bad key, busy, or down: remember it so the next
+    // visitors go straight to the classic ball, and tell this page to fall back.
+    const reason = error instanceof JevError ? unavailableReason(error.status) : null;
+    if (reason) {
+      await rememberUnavailable(request, reason);
+      return json({ status: "unavailable", reason }, 503);
+    }
     return json({ status: "error" }, 502);
   }
 }
