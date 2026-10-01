@@ -16,6 +16,12 @@ const REQUIRED_CONFIG = ["TYPESAFE_API_KEY", "TURNSTILE_SITE_KEY", "TURNSTILE_SE
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    // www.<domain> permanently redirects to the bare domain, so the site has
+    // one address.
+    if (url.hostname.startsWith("www.")) {
+      url.hostname = url.hostname.slice("www.".length);
+      return Response.redirect(url.toString(), 301);
+    }
     if (url.pathname === "/api/ask") {
       return handleAsk(request, env);
     }

@@ -6,7 +6,11 @@
   // Served only on the custom domain: the Turnstile widget is tied to that
   // hostname, so a second workers.dev URL would just be a broken copy.
   "workers_dev": false,
-  "routes": [{ "pattern": "notsomagic8ball.com", "custom_domain": true }],
+  "routes": [
+    { "pattern": "notsomagic8ball.com", "custom_domain": true },
+    // Redirects to the bare domain (see src/worker.js).
+    { "pattern": "www.notsomagic8ball.com", "custom_domain": true }
+  ],
   // Public settings. Secrets (TYPESAFE_API_KEY, TURNSTILE_SECRET_KEY,
   // AI_GATEWAY_TOKEN, TYPESAFE_BASE_URL) are stored on the Worker, and
   // locally in .dev.vars, which also overrides these for development.
@@ -14,10 +18,13 @@
     "TURNSTILE_SITE_KEY": "0x4AAAAAAFKmJ9eNeM8tLLjU"
   },
   // Static files are served straight from ./public; anything that isn't a file
-  // (i.e. /api/*) falls through to the Worker.
+  // (i.e. /api/*) falls through to the Worker. Pages go through the Worker
+  // first so it can redirect www to the bare domain; scripts, styles, and
+  // other files skip it.
   "assets": {
     "directory": "./public",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    "run_worker_first": ["/", "/index.html", "/make", "/make/*"]
   },
   // Per-visitor limit on /api/ask. Each answer takes a few seconds to
   // animate, so 10 a minute is well above a person's pace.

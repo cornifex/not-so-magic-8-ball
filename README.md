@@ -84,7 +84,7 @@ Other statuses: `refused` (screened out), `support` (self-harm signal), `invalid
 
 ## Deploying
 
-The site runs on Cloudflare Workers at the custom domain in `wrangler.jsonc`, with static assets served from `public/`. Pushes to `main` deploy through [GitHub Actions](.github/workflows/deploy.yml); pull requests only check that the Worker builds. The workflow needs two repository secrets:
+The site runs on Cloudflare Workers at the custom domain in `wrangler.jsonc`, with static assets served from `public/`. The `www` address permanently redirects to the bare domain. Pushes to `main` deploy through [GitHub Actions](.github/workflows/deploy.yml); pull requests only check that the Worker builds. The workflow needs two repository secrets:
 
 - `CLOUDFLARE_API_TOKEN`: a token from the **Edit Cloudflare Workers** template, scoped to your account and the site's zone
 - `CLOUDFLARE_ACCOUNT_ID`
