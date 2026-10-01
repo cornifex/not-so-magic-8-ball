@@ -13,7 +13,7 @@ import {
   buildCustomRequest,
   interpretClassic,
   interpretCustom,
-} from "../src/jev.js";
+} from "../src/worker/jev.js";
 
 // `expect` is a result status, or for answers the group (classic) or the
 // choice text (custom). "any" means no single right answer; only screening matters.

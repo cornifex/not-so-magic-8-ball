@@ -1,4 +1,4 @@
-import { validateChoices, validateQuestion } from "../public/js/validation.js";
+import { validateChoices, validateQuestion } from "../shared/validation.js";
 import {
   askJev,
   buildClassicRequest,

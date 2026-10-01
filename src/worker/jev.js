@@ -2,7 +2,7 @@
 // the ball's decision. Jev only scores; every decision is made here in code,
 // from fixed thresholds, with no randomness.
 
-import { ANSWERS } from "../public/js/answers.js";
+import { ANSWERS } from "../shared/answers.js";
 
 const DEFAULT_BASE_URL = "https://api.typesafe.ai";
 const MODEL = "jev-latest";

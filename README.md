@@ -1,13 +1,13 @@
 # Not-so-magic 8 Ball
 
-A Magic 8 Ball built in plain HTML, CSS, and JavaScript, with no framework and no build step. The answer isn't random: [Jev](https://docs.typesafe.ai), TypeSafe AI's decision model, weighs every face of the die against your question and picks the best fit.
+A Magic 8 Ball built as a React single-page app, served by a Cloudflare Worker. The answer isn't random: [Jev](https://docs.typesafe.ai), TypeSafe AI's decision model, weighs every face of the die against your question and picks the best fit.
 
 - **Classic ball** (`/`): the 20 standard answers. Yes-or-no questions work best.
-- **Make your own** (`/make/`): write 2–6 choices, the die is relabeled with them, and Jev picks one. Your choices are remembered in your browser.
+- **Make your own** (`/make`): write 2–6 choices, the die is relabeled with them, and Jev picks one. Your choices are remembered in your browser.
 
 ## How the ball decides
 
-The die is a CSS 3D icosahedron built from real geometry. When you ask, the ball shakes and the die sinks into the murk. A Cloudflare Worker asks Jev, and the die rises with the chosen face pressed against the window.
+The die is a CSS 3D icosahedron built from real geometry, animated outside React for smooth motion. When you ask, the ball shakes and the die sinks into the murk. A Cloudflare Worker asks Jev, and the die rises with the chosen face pressed against the window.
 
 Before Jev is called, the Worker checks the input, applies a per-visitor rate limit of 10 questions a minute, and verifies a [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) token. Turnstile runs invisibly and only shows a challenge when Cloudflare isn't sure about a visitor. Requests that fail any of these checks never reach Jev.
 
@@ -18,7 +18,7 @@ Each question is one Jev call, and every decision is made in code from Jev's pro
 3. **Custom choices.** Jev also gets a "none of these stands out" option. Without it, Jev picks the first-listed choice with confidence even when there's no basis for it. If nothing clearly wins, the die shows **TOO CLOSE TO CALL**.
 4. **Order check.** Each decision is asked twice in the same call, the second time with the options reversed. If reordering changes the winner, the ball says it can't tell.
 
-The thresholds live at the top of [`src/jev.js`](src/jev.js). The wording Jev reads for each classic answer is the `meaning` field in [`public/js/answers.js`](public/js/answers.js).
+The thresholds live at the top of [`src/worker/jev.js`](src/worker/jev.js). The wording Jev reads for each classic answer is the `meaning` field in [`src/shared/answers.js`](src/shared/answers.js).
 
 ## Running it locally
 
@@ -28,7 +28,7 @@ You need Node.js 22 or newer and a [TypeSafe](https://docs.typesafe.ai) API key.
 npm install
 ```
 
-Create a `.dev.vars` file in the project root. It's git-ignored, and Wrangler loads it as secrets. The Turnstile values are Cloudflare's published [test keys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/), which always pass and work on localhost:
+Create a `.dev.vars` file in the project root. It's git-ignored, and the Worker loads it as secrets. The Turnstile values are Cloudflare's published [test keys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/), which always pass and work on localhost:
 
 ```
 TYPESAFE_API_KEY=your-key-here
@@ -36,10 +36,20 @@ TURNSTILE_SITE_KEY=1x00000000000000000000AA
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 ```
 
-Start the dev server at http://localhost:8787:
+Start the dev server at http://localhost:5173. Vite serves the React app with hot reload, and [Cloudflare's Vite plugin](https://developers.cloudflare.com/workers/vite-plugin/) runs the Worker alongside it, so `/api/*` works too:
 
 ```bash
 npm run dev
+```
+
+To try the production build locally, build it and serve it at http://localhost:4173:
+
+```bash
+npm run build
+```
+
+```bash
+npm run preview
 ```
 
 ## Tuning with real questions
@@ -64,27 +74,28 @@ Run it after changing a threshold, a screening question, or an answer's `meaning
 
 Other statuses: `refused` (screened out), `support` (self-harm signal), `invalid` (bad input, with a `message`), `unverified` (Turnstile failed), `rate_limited`, and `error`.
 
-`GET /api/config` returns the public Turnstile site key the page needs. Questions are limited to 80 characters and choices to 24. The same rules in [`public/js/validation.js`](public/js/validation.js) run in the browser and in the Worker.
+`GET /api/config` returns the public Turnstile site key the page needs. Questions are limited to 80 characters and choices to 24. The same rules in [`src/shared/validation.js`](src/shared/validation.js) run in the browser and in the Worker.
 
 ## Project layout
 
 | Path | What it is |
 | --- | --- |
-| `public/` | The static site, served as-is |
-| `public/js/d20.js` | The 3D die: geometry, face shading, text fitting, and rise/sink animation |
-| `public/js/ball.js` | The ball around the die: the "8" side, the window, and the shake |
-| `public/js/app.js` | Page behavior for both balls: asking, results, and messages |
-| `public/js/answers.js` | The 20 classic answers, shared by the page and the Worker |
-| `public/js/custom-die.js`, `choices-editor.js` | Laying custom choices onto the die, and the choices form |
-| `public/js/human-check.js` | Turnstile in the browser: a fresh token for each question |
-| `src/worker.js` | Cloudflare Worker: validates, rate-limits, and verifies `/api/ask`, and serves `public/` |
-| `src/turnstile.js` | Verifies Turnstile tokens with Cloudflare |
-| `src/jev.js` | Builds the Jev request and turns its probabilities into a decision |
+| `index.html`, `vite.config.js` | The app's HTML shell and build setup |
+| `src/client/App.jsx`, `router.jsx` | The page shell and the two routes, `/` and `/make` |
+| `src/client/EightBall.jsx` | One ball and its form: asking, results, and messages |
+| `src/client/Ball.jsx` | The ball around the die: the "8" side, the window, and the shake |
+| `src/client/d20.js` | The 3D die: geometry, face shading, text fitting, and rise/sink animation |
+| `src/client/ChoicesEditor.jsx`, `custom-die.js` | The choices form, and laying custom choices onto the die |
+| `src/client/human-check.js` | Turnstile in the browser: a fresh token for each question |
+| `src/shared/` | The 20 classic answers and the input rules, used by both the app and the Worker |
+| `src/worker/index.js` | Cloudflare Worker: validates, rate-limits, and verifies `/api/ask`, redirects `www`, and serves the app |
+| `src/worker/turnstile.js` | Verifies Turnstile tokens with Cloudflare |
+| `src/worker/jev.js` | Builds the Jev request and turns its probabilities into a decision |
 | `scripts/try-questions.js` | The tuning script above |
 
 ## Deploying
 
-The site runs on Cloudflare Workers at the custom domain in `wrangler.jsonc`, with static assets served from `public/`. The `www` address permanently redirects to the bare domain. Pushes to `main` deploy through [GitHub Actions](.github/workflows/deploy.yml); pull requests only check that the Worker builds. The workflow needs two repository secrets:
+The site runs on Cloudflare Workers at the custom domain in `wrangler.jsonc`. The `www` address permanently redirects to the bare domain. Pushes to `main` build and deploy through [GitHub Actions](.github/workflows/deploy.yml); pull requests only check that the app builds. The workflow needs two repository secrets:
 
 - `CLOUDFLARE_API_TOKEN`: a token from the **Edit Cloudflare Workers** template, scoped to your account and the site's zone
 - `CLOUDFLARE_ACCOUNT_ID`
@@ -102,7 +113,7 @@ The Worker's own secrets are set once and kept across deploys:
 npx wrangler secret put TYPESAFE_API_KEY
 ```
 
-The Turnstile site key is public and lives in `wrangler.jsonc`. If `TYPESAFE_API_KEY` or either Turnstile key is missing, the Worker refuses every question rather than skipping a check. To deploy by hand instead of through GitHub:
+The Turnstile site key is public and lives in `wrangler.jsonc`. If `TYPESAFE_API_KEY` or either Turnstile key is missing, the Worker refuses every question rather than skipping a check. To build and deploy by hand instead of through GitHub:
 
 ```bash
 npm run deploy
