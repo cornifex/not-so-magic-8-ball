@@ -86,6 +86,7 @@ Other statuses: `refused` (screened out), `support` (self-harm signal), `invalid
 | `src/client/d20.js` | The 3D die: geometry, face shading, text fitting, and rise/sink animation |
 | `src/client/ChoicesEditor.jsx`, `custom-die.js` | The choices form, and laying custom choices onto the die |
 | `src/client/human-check.js` | Turnstile in the browser: a fresh token for each question |
+| `src/client/TipJar.jsx` | The footer's tip link and the Ko-fi tip panel it opens |
 | `src/shared/` | The 20 classic answers and the input rules, used by both the app and the Worker |
 | `src/worker/index.js` | Cloudflare Worker: validates, rate-limits, and verifies `/api/ask`, redirects `www`, and serves the app |
 | `src/worker/turnstile.js` | Verifies Turnstile tokens with Cloudflare |
@@ -129,4 +130,4 @@ Calls to TypeSafe go through [Cloudflare AI Gateway](https://developers.cloudfla
 
 ## Privacy
 
-Questions and choices are sent to TypeSafe to be evaluated. The Worker doesn't store them, and its error logs never include them. When requests go through Cloudflare AI Gateway, the gateway logs only metadata (token counts, status, timing), never the questions themselves. Custom choices are saved only in your own browser's local storage.
+Questions and choices are sent to TypeSafe to be evaluated. The Worker doesn't store them, and its error logs never include them. When requests go through Cloudflare AI Gateway, the gateway logs only metadata (token counts, status, timing), never the questions themselves. Custom choices are saved only in your own browser's local storage. The Ko-fi tip panel loads from Ko-fi only after you open it.

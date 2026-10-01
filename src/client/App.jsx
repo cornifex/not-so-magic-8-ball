@@ -1,5 +1,6 @@
 import { EightBall } from "./EightBall.jsx";
 import { Link, useRoute } from "./router.jsx";
+import { TipJar } from "./TipJar.jsx";
 
 const PAGES = {
   "/": {
@@ -49,7 +50,10 @@ export function App() {
         </>
       )}
 
-      <footer className="credit">Answers chosen by Jev from TypeSafe AI.</footer>
+      <footer className="credit">
+        <TipJar />
+        <p>Answers chosen by Jev from TypeSafe AI.</p>
+      </footer>
     </main>
   );
 }
