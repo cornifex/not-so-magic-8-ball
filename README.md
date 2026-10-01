@@ -126,8 +126,8 @@ Calls to TypeSafe go through [Cloudflare AI Gateway](https://developers.cloudfla
 - **Authenticated Gateway** on, so only the Worker can use it
 - **Cache Responses** on; the Worker caches each question's answer for a week, so a repeated question gets the same answer at no charge
 - **Rate Limit Requests** at 100 per 60 seconds, sliding window: a cap across all visitors, on top of the Worker's per-visitor limit
-- **Collect Logs** on; the Worker tells the gateway to keep metadata only, never the question
+- **Collect Logs** on: each log holds the question, any custom choices, and Jev's scores, with nothing that identifies the visitor. Cloudflare deletes older logs automatically.
 
 ## Privacy
 
-Questions and choices are sent to TypeSafe to be evaluated. The Worker doesn't store them, and its error logs never include them. When requests go through Cloudflare AI Gateway, the gateway logs only metadata (token counts, status, timing), never the questions themselves. Custom choices are saved only in your own browser's local storage. The Ko-fi tip panel loads from Ko-fi only after you open it.
+Questions and any custom choices are sent to TypeSafe to be evaluated, and logged anonymously in Cloudflare AI Gateway along with Jev's scores, to help improve the ball. The logs hold only what was asked and how Jev scored it: no IP addresses, accounts, or other identifiers, because the request to the gateway comes from the Worker, not the visitor's browser. Cloudflare deletes older logs automatically. The page says this in its footer and asks visitors to leave out names and personal details. The Worker's own logs never include questions. Custom choices are also saved in your own browser's local storage, so they're still there next time. The Ko-fi tip panel loads from Ko-fi only after you open it.

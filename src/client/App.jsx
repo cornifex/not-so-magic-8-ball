@@ -53,6 +53,10 @@ export function App() {
       <footer className="credit">
         <TipJar />
         <p>Answers chosen by Jev from TypeSafe AI.</p>
+        <p>
+          What you ask is logged anonymously to help improve the ball, so please leave out
+          names and personal details.
+        </p>
       </footer>
     </main>
   );
