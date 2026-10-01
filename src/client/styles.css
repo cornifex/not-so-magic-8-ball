@@ -259,34 +259,6 @@ a {
   100% { transform: none; opacity: 1; }
 }
 
-.ball-wrap.shaking {
-  animation: shake 900ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
-}
-
-.ball-wrap.shaking .ball-surface {
-  animation: twist 900ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
-}
-
-@keyframes shake {
-  0%, 100% { translate: 0 0; }
-  10% { translate: -3% -1.5%; }
-  25% { translate: 4% 1%; }
-  40% { translate: -4% -0.5%; }
-  55% { translate: 3% 1%; }
-  70% { translate: -2% 0; }
-  85% { translate: 1% 0; }
-}
-
-@keyframes twist {
-  0%, 100% { rotate: 0deg; }
-  10% { rotate: -7deg; }
-  25% { rotate: 8deg; }
-  40% { rotate: -6deg; }
-  55% { rotate: 4deg; }
-  70% { rotate: -2deg; }
-  85% { rotate: 1deg; }
-}
-
 /* ----------------------------------------------------------------- die -- */
 
 .die-depth {
@@ -640,8 +612,6 @@ a {
     opacity: 1;
   }
 
-  .ball-wrap.shaking,
-  .ball-wrap.shaking .ball-surface,
   .ball.stirring .bubbles i,
   .die-depth.settled {
     animation: none;

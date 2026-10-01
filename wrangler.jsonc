@@ -1,14 +1,14 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "not-so-magic-8-ball",
-  "main": "src/worker.js",
+  "main": "src/worker/index.js",
   "compatibility_date": "2026-09-30",
   // Served only on the custom domain: the Turnstile widget is tied to that
   // hostname, so a second workers.dev URL would just be a broken copy.
   "workers_dev": false,
   "routes": [
     { "pattern": "notsomagic8ball.com", "custom_domain": true },
-    // Redirects to the bare domain (see src/worker.js).
+    // Redirects to the bare domain (see src/worker/index.js).
     { "pattern": "www.notsomagic8ball.com", "custom_domain": true }
   ],
   // Public settings. Secrets (TYPESAFE_API_KEY, TURNSTILE_SECRET_KEY,
@@ -17,14 +17,15 @@
   "vars": {
     "TURNSTILE_SITE_KEY": "0x4AAAAAAFKmJ9eNeM8tLLjU"
   },
-  // Static files are served straight from ./public; anything that isn't a file
-  // (i.e. /api/*) falls through to the Worker. Pages go through the Worker
-  // first so it can redirect www to the bare domain; scripts, styles, and
-  // other files skip it.
+  // The React app, built by Vite. The Cloudflare Vite plugin fills in the
+  // assets directory. Any path that isn't a file serves index.html, so the
+  // app's routes (/, /make) load directly. Everything except Vite's bundled
+  // scripts and styles runs through the Worker first, so it can redirect www
+  // to the bare domain and answer /api/*.
   "assets": {
-    "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/", "/index.html", "/make", "/make/*"]
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/*", "!/assets/*"]
   },
   // Per-visitor limit on /api/ask. Each answer takes a few seconds to
   // animate, so 10 a minute is well above a person's pace.

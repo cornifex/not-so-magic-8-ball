@@ -115,6 +115,17 @@ export function createD20(root, labels, { reducedMotion }) {
   return {
     relabel,
 
+    // Remove the die and stop its animations, leaving `root` as it was.
+    destroy() {
+      cancelAnimationFrame(shadingFrame);
+      for (const animation of [...root.getAnimations(), ...die.getAnimations()]) {
+        animation.cancel();
+      }
+      stage.remove();
+      root.classList.remove("settled");
+      root.removeAttribute("style");
+    },
+
     // Sink into the liquid and tumble to a random orientation.
     sink() {
       root.classList.remove("settled");

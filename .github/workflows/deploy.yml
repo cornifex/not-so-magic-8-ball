@@ -1,6 +1,6 @@
 name: Deploy
 
-# Pull requests only check that the Worker builds; pushes to main deploy it.
+# Pull requests only check that the app builds; pushes to main deploy it.
 on:
   push:
     branches: [main]
@@ -30,12 +30,14 @@ jobs:
       # deploy step below then uses.
       - run: npm ci
 
-      - name: Check the Worker builds
-        run: npx wrangler deploy --dry-run --outdir dist
+      # Vite builds the React app and the Worker into dist/, and points
+      # `wrangler deploy` at the built Worker's config.
+      - name: Build
+        run: npm run build
 
       # Worker secrets (TYPESAFE_API_KEY, TURNSTILE_SECRET_KEY,
-      # AI_GATEWAY_TOKEN) live on Cloudflare and persist across deploys, so
-      # this only needs Cloudflare credentials.
+      # TYPESAFE_BASE_URL, AI_GATEWAY_TOKEN) live on Cloudflare and persist
+      # across deploys, so this only needs Cloudflare credentials.
       - name: Deploy to Cloudflare
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: cloudflare/wrangler-action@v4
