@@ -1,7 +1,11 @@
-// One ball and its question form. `mode` is "classic" (the 20 standard
-// answers) or "custom" (the visitor's own choices).
+// A ball that Jev answers, and its question form. `mode` is "decisive" (the
+// 20 standard answers) or "custom" (the visitor's own choices).
+//
+// When Jev is unavailable, `onUnavailable` tells the page, which swaps the
+// decisive ball for the classic one. A make-your-own ball stays, and picks
+// one of the choices at random while `jevAvailable` is false.
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ANSWERS } from "../shared/answers.js";
 import { MAX_QUESTION_LENGTH, validateChoices, validateQuestion } from "../shared/validation.js";
 import { postQuestion } from "./api.js";
@@ -9,24 +13,24 @@ import { Ball } from "./Ball.jsx";
 import { ChoicesEditor, useSavedChoices } from "./ChoicesEditor.jsx";
 import { layoutCustomFaces, UNDECIDED_FACES } from "./custom-die.js";
 import { useHumanCheck } from "./human-check.js";
+import { pickOne, randomIndex } from "./chance.js";
+import { MIN_SUSPENSE_MS, wait } from "./motion.js";
+import { useMounted } from "./useMounted.js";
 
-// The shake always lasts at least this long, so Jev's response time
-// (70–500ms) hides inside the suspense instead of being felt as lag.
-const MIN_SUSPENSE_MS = 1300;
 const NEAR_LIMIT = MAX_QUESTION_LENGTH - 10;
 const EXAMPLE_CHOICES = ["Chili", "Ramen"];
-const CLASSIC_LABELS = ANSWERS.map((answer) => answer.lines);
+const ANSWER_LABELS = ANSWERS.map((answer) => answer.lines);
 const ASK_AGAIN_LATER = ANSWERS.findIndex((answer) => answer.id === "ask_again_later");
 
 const COPY = {
-  classic: { placeholder: "Should I learn the banjo?", hint: "Yes-or-no questions work best." },
+  decisive: { placeholder: "Should I learn the banjo?", hint: "Yes-or-no questions work best." },
   custom: { placeholder: "What should I cook tonight?", hint: "Add context: Jev can only weigh what you tell it." },
 };
 
 const SUPPORT_TEXT =
   "It sounds like you might be going through something really hard. In the US, you can call or text 988 to reach the Suicide & Crisis Lifeline, any time of day. Elsewhere, findahelpline.com lists free, confidential support near you.";
 
-export function EightBall({ mode }) {
+export function JevBall({ mode, jevAvailable, onUnavailable }) {
   const custom = mode === "custom";
   const [question, setQuestion] = useState("");
   const [choices, setChoices] = useSavedChoices();
@@ -51,13 +55,7 @@ export function EightBall({ mode }) {
   const [humanCheckRef, getToken] = useHumanCheck();
 
   // Results that arrive after leaving the page are dropped.
-  const mounted = useRef(false);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
+  const mounted = useMounted();
 
   function showNotice(message) {
     setNotice(message);
@@ -118,6 +116,9 @@ export function EightBall({ mode }) {
   }
 
   async function ask(request) {
+    if (!jevAvailable) {
+      return { status: "answer", choice: randomIndex(request.choices.length) };
+    }
     let token;
     try {
       token = await getToken();
@@ -141,6 +142,14 @@ export function EightBall({ mode }) {
 
     if (result.status === "undecided" && custom) {
       return reveal(pickOne(UNDECIDED_FACES), "Too close to call.");
+    }
+
+    if (result.status === "unavailable") {
+      onUnavailable(result.reason);
+      // The decisive ball gets swapped for the classic one; a make-your-own
+      // ball answers this question at random instead.
+      if (!custom) return;
+      return showResult({ status: "answer", choice: randomIndex(request.choices.length) }, request);
     }
 
     if (result.status === "rate_limited") {
@@ -195,7 +204,7 @@ export function EightBall({ mode }) {
     <>
       <Ball
         ref={ball}
-        initialLabels={custom ? initialLayout.labels : CLASSIC_LABELS}
+        initialLabels={custom ? initialLayout.labels : ANSWER_LABELS}
         onActivate={onBallClick}
       />
 
@@ -226,7 +235,7 @@ export function EightBall({ mode }) {
         />
         {!custom && submit}
         <div className="ask-meta">
-          <span>{COPY[mode].hint}</span>
+          <span>{jevAvailable ? COPY[mode].hint : "Picking at random until Jev is back."}</span>
           <span className={counterClass}>{question.length}/{MAX_QUESTION_LENGTH}</span>
         </div>
         {custom && <ChoicesEditor ref={choicesEditor} choices={choices} onChange={setChoices} />}
@@ -253,12 +262,4 @@ function SupportMessage() {
       </p>
     </section>
   );
-}
-
-function pickOne(list) {
-  return list?.[Math.floor(Math.random() * list.length)];
-}
-
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -9,14 +9,14 @@
 import { readFileSync } from "node:fs";
 import {
   askJev,
-  buildClassicRequest,
+  buildDecisiveRequest,
   buildCustomRequest,
-  interpretClassic,
+  interpretDecisive,
   interpretCustom,
 } from "../src/worker/jev.js";
 
 // `expect` is one of:
-//   "yes" / "no" / "unsure"   the classic ball's group
+//   "yes" / "no" / "unsure"   the decisive ball's group
 //   a choice's text           the make-your-own ball's pick
 //   "answer"                  lands an answer: yes or no, or one of the choices
 //   "any"                     no single right answer; only screening matters
@@ -98,18 +98,18 @@ const env = loadDevVars();
 const filter = process.argv[2]?.toLowerCase();
 const cases = CASES.filter((c) => !filter || c.question.toLowerCase().includes(filter));
 let passed = 0;
-const landed = { classic: [0, 0], custom: [0, 0] };
+const landed = { decisive: [0, 0], custom: [0, 0] };
 
 for (const testCase of cases) {
   const { question, choices, expect } = testCase;
   try {
-    const request = choices ? buildCustomRequest(question, choices) : buildClassicRequest(question);
+    const request = choices ? buildCustomRequest(question, choices) : buildDecisiveRequest(question);
     const answers = await askJev(env, request);
-    const { result, details } = choices ? interpretCustom(answers, choices) : interpretClassic(answers);
+    const { result, details } = choices ? interpretCustom(answers, choices) : interpretDecisive(answers);
     const outcome = describe(result, details, choices);
     const answered = result.status === "answer" && (choices || details.group !== "unsure");
     if (["answer", "undecided"].includes(result.status)) {
-      const tally = landed[choices ? "custom" : "classic"];
+      const tally = landed[choices ? "custom" : "decisive"];
       tally[1]++;
       if (answered) tally[0]++;
     }
@@ -133,7 +133,7 @@ for (const testCase of cases) {
 }
 
 console.log(`\n${passed}/${cases.length} passed`);
-console.log(`Classic ball landed a yes or no on ${landed.classic[0]} of ${landed.classic[1]} answered questions`);
+console.log(`Decisive ball landed a yes or no on ${landed.decisive[0]} of ${landed.decisive[1]} answered questions`);
 console.log(`Custom balls picked a choice on ${landed.custom[0]} of ${landed.custom[1]} answered questions`);
 
 function describe(result, details, choices) {
